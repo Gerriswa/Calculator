@@ -31,9 +31,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 @Composable
 fun Calculator(
     modifier: Modifier = Modifier,
-    calculatorViewModel: CalculatorViewModel = viewModel() // можно просто viewModel
+    viewModel: CalculatorViewModel = viewModel() // можно просто viewModel
 ) {
-    val state = calculatorViewModel.state.collectAsState()
+    val state = viewModel.state.collectAsState()
 
     Column(
         modifier
@@ -56,22 +56,39 @@ fun Calculator(
             verticalArrangement = Arrangement.Bottom,
             horizontalAlignment = Alignment.End
         ) {
-            var colorExpression = MaterialTheme.colorScheme.onPrimaryContainer // exception - CalculatorState.Error
+            var colorExpression =
+                MaterialTheme.colorScheme.onPrimaryContainer // exception - CalculatorState.Error
+            Log.d("Calculator", "${state.value}")
 
             val (textExpression, textResult) =
-            when (val currentState = state.value) {
-                is CalculatorState.Error -> {
-                    colorExpression = MaterialTheme.colorScheme.error
-                    currentState.expression to ""}
-                CalculatorState.Initial -> "" to ""
-                is CalculatorState.Input -> currentState.expression to currentState.result
-                is CalculatorState.Success -> currentState.result to ""
-            }
+                when (val currentState =
+                    state.value) { // !!! надо еще раз разобраться почему значение может поменяться , разве отрисовка просто не начнется заново
+                    ScreenState.Initial -> {
+                        Log.d("Calculator", "state init")
+                        "" to ""
+                    }
+
+                    is ScreenState.Success -> {
+                        Log.d("Calculator", "state success")
+                        currentState.result to ""
+                    }
+
+                    is ScreenState.Error -> {
+                        colorExpression = MaterialTheme.colorScheme.error
+                        Log.d("Calculator", "state error")
+                        currentState.expression to ""
+                    }
+
+                    is ScreenState.Input -> {
+                        Log.d("Calculator", "state input")
+                        currentState.expression to currentState.result
+                    }
+                }
 
             Text(
                 modifier = Modifier,
                 text = textExpression,
-                lineHeight =  36.sp,
+                lineHeight = 36.sp,
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 36.sp,
                 color = colorExpression
@@ -85,35 +102,34 @@ fun Calculator(
                 color = MaterialTheme.colorScheme.onSecondaryContainer
             )
         }
+
+        val onClick: (symbol: Operation) -> Unit = { operation ->
+            viewModel.processCommand(CommandOperation.Input(operation))
+            Log.d("Calculator", "Click, input:${operation.name}")
+        }
+
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(36.dp),
         ) {
             listOf("√", "π", "^", "!").forEach {
+
                 val modifier = if (it == "^") {
                     Modifier
                         .weight(1f)
                         .padding(top = 8.dp)
                         .clickable {
-                            calculatorViewModel.processCommand(CalculatorCommand.Input(Symbol.FACTORIAL))
+                            onClick(Operation.FACTORIAL)
                         }
                 } else {
                     Modifier
                         .weight(1f)
                         .clickable {
                             when (it) {
-                                "√" -> calculatorViewModel.processCommand(
-                                    CalculatorCommand.Input(Symbol.SQRT)
-                                )
-
-                                "π" -> calculatorViewModel.processCommand(
-                                    CalculatorCommand.Input(Symbol.PI)
-                                )
-
-                                "!" -> calculatorViewModel.processCommand(
-                                    CalculatorCommand.Input(Symbol.POWER)
-                                )
+                                "√" -> onClick(Operation.SQRT)
+                                "π" -> onClick(Operation.PI)
+                                "!" -> onClick(Operation.POWER)
                             }
                         }
                 }
@@ -132,7 +148,6 @@ fun Calculator(
                 .padding(start = 8.dp, end = 8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            // PrintButton() // думаю ,что надо передавать модификатор от Column !
             val numbers: String = ("7894561230")
             val symbols = listOf<String>("AC", "(  )", "%", "÷", "X", "-", "+", ",", "=")
             var counterSymbols = 0
@@ -153,27 +168,10 @@ fun Calculator(
                                         .clip(CircleShape)
                                         .clickable {
                                             when (it) {
-                                                0 -> calculatorViewModel.processCommand(
-                                                    CalculatorCommand.Clear
-                                                )
-
-                                                1 -> calculatorViewModel.processCommand(
-                                                    CalculatorCommand.Input(
-                                                        Symbol.PARENTHESIS
-                                                    )
-                                                )
-
-                                                2 -> calculatorViewModel.processCommand(
-                                                    CalculatorCommand.Input(
-                                                        Symbol.PERCENT
-                                                    )
-                                                )
-
-                                                3 -> calculatorViewModel.processCommand(
-                                                    CalculatorCommand.Input(
-                                                        Symbol.DIVIDE
-                                                    )
-                                                )
+                                                0 -> viewModel.processCommand(CommandOperation.Clear)
+                                                1 -> onClick(Operation.PARENTHESIS)
+                                                2 -> onClick(Operation.PERCENT)
+                                                3 -> onClick(Operation.DIVIDE)
                                             }
                                         }
                                         .aspectRatio(1f)
@@ -201,11 +199,7 @@ fun Calculator(
                                             .background(color)
                                             .aspectRatio(2 / 0.95f)
                                             .clickable {
-                                                calculatorViewModel.processCommand(
-                                                    CalculatorCommand.Input(
-                                                        Symbol.DIGITAL_0
-                                                    )
-                                                )
+                                                onClick(Operation.DIGITAL_0)
                                             },
                                         contentAlignment = Alignment.Center
                                     ) {
@@ -223,22 +217,11 @@ fun Calculator(
                                             .background(color)
                                             .clickable {
                                                 when (it) {
-                                                    1 -> {
-                                                        calculatorViewModel.processCommand(
-                                                            CalculatorCommand.Input(
-                                                                Symbol.DOT
-                                                            )
-                                                        )
-                                                    }
-
-                                                    2 -> {
-                                                        calculatorViewModel.processCommand(
-                                                            CalculatorCommand.Evaluate
-                                                            ///логика отрисовки
-                                                        )
-                                                    }
+                                                    1 -> onClick(Operation.DOT)
+                                                    2 -> viewModel.processCommand(
+                                                        CommandOperation.Evaluate
+                                                    )
                                                 }
-
                                             }
                                             .aspectRatio(1f),
                                         contentAlignment = Alignment.Center
@@ -270,77 +253,18 @@ fun Calculator(
                                         .aspectRatio(1f)
                                         .clickable {
                                             when (buttonText) {
-                                                "1" -> {
-                                                    calculatorViewModel.processCommand(
-                                                        CalculatorCommand.Input(Symbol.DIGITAL_1)
-                                                    )
-                                                }
-
-                                                "2" -> {
-                                                    calculatorViewModel.processCommand(
-                                                        CalculatorCommand.Input(Symbol.DIGITAL_2)
-                                                    )
-                                                }
-
-                                                "3" -> {
-                                                    calculatorViewModel.processCommand(
-                                                        CalculatorCommand.Input(Symbol.DIGITAL_3)
-                                                    )
-                                                }
-
-                                                "4" -> {
-                                                    calculatorViewModel.processCommand(
-                                                        CalculatorCommand.Input(Symbol.DIGITAL_4)
-                                                    )
-                                                }
-
-                                                "5" -> {
-                                                    calculatorViewModel.processCommand(
-                                                        CalculatorCommand.Input(Symbol.DIGITAL_5)
-                                                    )
-                                                }
-
-                                                "6" -> {
-                                                    calculatorViewModel.processCommand(
-                                                        CalculatorCommand.Input(Symbol.DIGITAL_6)
-                                                    )
-                                                }
-
-                                                "7" -> {
-                                                    calculatorViewModel.processCommand(
-                                                        CalculatorCommand.Input(Symbol.DIGITAL_7)
-                                                    )
-                                                }
-
-                                                "8" -> {
-                                                    calculatorViewModel.processCommand(
-                                                        CalculatorCommand.Input(Symbol.DIGITAL_8)
-                                                    )
-                                                }
-
-                                                "9" -> {
-                                                    calculatorViewModel.processCommand(
-                                                        CalculatorCommand.Input(Symbol.DIGITAL_9)
-                                                    )
-                                                }
-
-                                                "X" -> {
-                                                    calculatorViewModel.processCommand(
-                                                        CalculatorCommand.Input(Symbol.MULTIPLY)
-                                                    )
-                                                }
-
-                                                "-" -> {
-                                                    calculatorViewModel.processCommand(
-                                                        CalculatorCommand.Input(Symbol.SUBTRACT)
-                                                    )
-                                                }
-
-                                                "+" -> {
-                                                    calculatorViewModel.processCommand(
-                                                        CalculatorCommand.Input(Symbol.ADD)
-                                                    )
-                                                }
+                                                "1" -> onClick(Operation.DIGITAL_1)
+                                                "2" -> onClick(Operation.DIGITAL_2)
+                                                "3" -> onClick(Operation.DIGITAL_3)
+                                                "4" -> onClick(Operation.DIGITAL_4)
+                                                "5" -> onClick(Operation.DIGITAL_5)
+                                                "6" -> onClick(Operation.DIGITAL_6)
+                                                "7" -> onClick(Operation.DIGITAL_7)
+                                                "8" -> onClick(Operation.DIGITAL_8)
+                                                "9" -> onClick(Operation.DIGITAL_9)
+                                                "+" -> onClick(Operation.ADD)
+                                                "-" -> onClick(Operation.SUBTRACT)
+                                                "X" -> onClick(Operation.MULTIPLY)
                                             }
                                         },
                                     Alignment.Center
@@ -361,36 +285,3 @@ fun Calculator(
         }
     }
 }
-
-/*....
-Создайте отдельный файл, например ButtonsData.kt, и объявите там список как val (не var):
-
-kotlin
-// ButtonsData.kt
-data class ButtonData(val text: String, val command: CalculatorCommand)
-
-val BUTTONS = listOf(
-    ButtonData("
-........
-
-
-// 1. Заранее готовим список с командами
-data class ButtonData(val text: String, val command: CalculatorCommand)
-
-val buttons = listOf(
-    ButtonData("1", Command.Input(Symbol.DIGITAL_1)),
-    ButtonData("2", Command.Input(Symbol.DIGITAL_2)),
-    // ... все кнопки
-    ButtonData("X", Command.Input(Symbol.MULTIPLY)),
-)
-
-// 2. В композиции просто используем цикл
-buttons.forEach { data ->
-    Box(
-        modifier = Modifier
-            .clickable { viewModel.processCommand(data.command) } // Вот тут нет when!
-    ) {
-        Text(data.text)
-    }
-}
- */

@@ -1,69 +1,60 @@
 package com.gerriswa.calculator
 
-import android.R
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import org.mariuszgromada.math.mxparser.Expression
-import kotlin.random.Random
-import kotlin.uuid.Uuid.Companion.random
 
-/*Для примитивов — всегда вычисляемый геттер.
-
-Для изменяемых объектов (контейнеры, Flow, State) — прямая ссылка с сужением типа до неизменяемого интерфейса.
-
-Для иммутабельных объектов, которые заменяются целиком — вычисляемый геттер, чтобы читать последнюю версию.*/
 class CalculatorViewModel : ViewModel() {
-    private val _state: MutableStateFlow<CalculatorState> =
-        MutableStateFlow(CalculatorState.Initial)
-    var state = _state.asStateFlow() // это публичная переменная -> отдаем просто неизменяемую копию
+    private val _state: MutableStateFlow<ScreenState> =
+        MutableStateFlow(ScreenState.Initial)
+    var state = _state.asStateFlow()
     private var expression: String = ""
 
-    fun processCommand(command: CalculatorCommand) {
+    fun processCommand(command: CommandOperation) {
         when (command) {
 
-            CalculatorCommand.Clear -> {
+            CommandOperation.Clear -> {
                 expression = ""
-                _state.value = CalculatorState.Initial
+                _state.value = ScreenState.Initial
                 Log.d("Calculator", "AC button is clicked")
             }
 
-            CalculatorCommand.Evaluate -> { // "оценивать" вызов при клике на '='
+            CommandOperation.Evaluate -> {
                 val result = evaluate()
-                if(result != null){
-                    _state.value = CalculatorState.Success(result)
-                }else{
-                    _state.value = CalculatorState.Error(expression)
+                if (result != null) {
+                    _state.value = ScreenState.Success(result)
+                } else {
+                    _state.value = ScreenState.Error(expression)
                 }
                 Log.d("Calculator", "Evaluate: = button is clicked")
             }
 
-            is CalculatorCommand.Input -> {
-                val gotSymbol = if(command.symbol == Symbol.PARENTHESIS){
+            is CommandOperation.Input -> {
+                val gotOperation = if (command.operation == Operation.PARENTHESIS) {
                     getCorrectParenthesis()
-                }else{
-                    command.symbol.drawnSymbol // переданный enum.drawnSymbol
+                } else {
+                    command.operation.drawnSymbol
                 }
-                expression += gotSymbol
-                _state.value = CalculatorState.Input(
+                expression += gotOperation
+                _state.value = ScreenState.Input(
                     expression = expression,
                     result = evaluate() ?: ""
                 )
                 Log.d(
                     "Calculator",
-                    "$command.symbol: ${command.symbol.drawnSymbol} button is clicked"
+                    "$command.symbol: ${command.operation.drawnSymbol} button is clicked"
                 )
             }
         }
     }
 
-    private fun evaluate(): String? { // вычесления
-        return expression.replace('x', '*').replace(',','.')
-             .let{Expression(it)}
-             .calculate()
-             .takeIf { it.isFinite() } ?. toString()
-               // calc() возвращает double
+    private fun evaluate(): String? {
+        return expression.replace('x', '*').replace(',', '.')
+            .let { Expression(it) }
+            .calculate()
+            .takeIf { it.isFinite() }?.toString()
     }
 
     fun getCorrectParenthesis(): String {
@@ -71,34 +62,34 @@ class CalculatorViewModel : ViewModel() {
         val closeCount = expression.count { it == ')' }
         return when {
             expression.isEmpty() -> "("
-            expression.last().let { !it.isDigit() &&  it != ')' && it != 'π' } -> "(" // any operation
+            expression.last().let { !it.isDigit() && it != ')' && it != 'π' } -> "("
             openCount > closeCount -> ")"
             else -> "("
         }
     }
 }
 
-sealed interface CalculatorState {
+sealed interface ScreenState {
 
-    data object Initial : CalculatorState// если парам отсутствуют
+    data object Initial : ScreenState
 
     data class Input(
         val expression: String,
         val result: String
-    ) : CalculatorState
+    ) : ScreenState
 
-    data class Success(val result: String) : CalculatorState
+    data class Success(val result: String) : ScreenState
 
-    data class Error(val expression: String) : CalculatorState
+    data class Error(val expression: String) : ScreenState
 }
 
-sealed interface CalculatorCommand {
-    data object Clear : CalculatorCommand
-    data object Evaluate : CalculatorCommand
-    data class Input(val symbol: Symbol) : CalculatorCommand
+sealed interface CommandOperation {
+    data object Clear : CommandOperation
+    data object Evaluate : CommandOperation
+    data class Input(val operation: Operation) : CommandOperation
 }
 
-enum class Symbol(val drawnSymbol: String) {
+enum class Operation(val drawnSymbol: String) {
     DIGITAL_0("0"),
     DIGITAL_1("1"),
     DIGITAL_2("2"),
